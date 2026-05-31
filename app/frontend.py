@@ -132,7 +132,7 @@ const U={
   balthasar:{codename:'BALTHASAR-02',role:'母亲',color:'#ff69b4'},
   casper:{codename:'CASPER-03',role:'女人',color:'#ffd700'}
 };
-let state={token:null,user:null,mode:'judge',unit:'melchior',msgs:[],loading:false};
+const CNL=String.fromCharCode(10);let state={token:null,user:null,mode:'judge',unit:'melchior',msgs:[],loading:false};
 
 function html(t){const d=document.createElement('div');d.innerHTML=t;return d.firstElementChild}
 function qs(s,p){return(p||document).querySelector(s)}
@@ -192,8 +192,8 @@ function renderMsg(m){
   return '';
 }
 
-function fmt(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}
-function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}
+function fmt(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split(CNL).join('<br>')}
+function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split(CNL).join('<br>')}
 
 function renderLogin(){
   const app=qs('#app');
