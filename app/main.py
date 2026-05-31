@@ -5,6 +5,7 @@ import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from app.magi import MagiSystem, UNIT_CONFIG
 from app.auth import get_current_user, require_admin, hash_password
 from app.models import (
@@ -35,6 +36,8 @@ magi = MagiSystem()
 app.include_router(auth_router.router)
 app.include_router(admin_router.router)
 app.include_router(conv_router.router)
+
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 # ─── Judge endpoint ────────────────────────────────────
