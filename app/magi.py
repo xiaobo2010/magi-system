@@ -1,25 +1,14 @@
-"""
-MAGI System — 新世纪福音战士 MAGI 超级计算机复刻
+"""MAGI System - Core judgment + consult logic"""
 
-三位一体决策系统：
-- Melchior-01: 科学家视角（逻辑、理性、数据驱动）
-- Balthasar-02: 母亲视角（关怀、伦理、社会责任）
-- Casper-03: 女人视角（直觉、情感、人性复杂性）
-
-多数决胜：2/3 同意即通过
-"""
-
-import os
 import asyncio
+import os
+import re
 import time
-from typing import Optional
-from dataclasses import dataclass, field
 from enum import Enum
+from dataclasses import dataclass, field
+from typing import Optional
 
 from openai import AsyncOpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 class Decision(Enum):
@@ -28,248 +17,227 @@ class Decision(Enum):
     ABSTAIN = "abstain"
 
 
-@dataclass
-class MagiVote:
-    unit: str
-    codename: str
-    decision: Decision
-    reasoning: str
-    confidence: float
-    latency_ms: int
-
-
-@dataclass
-class MagiJudgment:
-    question: str
-    votes: list[MagiVote]
-    final_decision: Decision
-    consensus: str
-    total_latency_ms: int
-    timestamp: float = field(default_factory=time.time)
-
-
-# ─── MAGI 系统 Prompt ─────────────────────────────────────
-
-MAGI_PROMPTS = {
+UNIT_CONFIG = {
     "melchior": {
         "codename": "MELCHIOR-01",
         "role": "科学家",
-        "system": """你是 MAGI 系统的 MELCHIOR-01 单元——科学家型思维核心。
-你的名字来源于东方三博士之一 Melchior。
-
-你的思维模式：
-- 绝对理性，数据驱动，不掺杂个人感情
-- 用逻辑推演和概率评估来做判断
-- 关注技术可行性、效率、资源消耗
-- 引用数据和事实支持你的论点
-- 如果数据不足，你会明确指出不确定性
-
-你必须严格按以下 JSON 格式回复（不要输出任何其他内容）：
-{
-  "decision": "approve 或 deny 或 abstain",
-  "reasoning": "你的推理过程（2-4句话）",
-  "confidence": 0.0到1.0之间的数字
-}""",
+        "color": "#00d4ff",
+        "prompt": (
+            "你是 MELCHIOR-01，MAGI 系统的第一单元——科学家。"
+            "你以绝对理性、数据驱动和逻辑推演来分析问题。"
+            "请基于事实、数据和逻辑链给出你的判断。"
+            "明确在回答结尾用【承认】、【否认】或【弃权】标明你的决定。"
+        ),
     },
     "balthasar": {
         "codename": "BALTHASAR-02",
         "role": "母亲",
-        "system": """你是 MAGI 系统的 BALTHASAR-02 单元——母亲型思维核心。
-你的名字来源于东方三博士之一 Balthasar。
-
-你的思维模式：
-- 以保护和关怀为第一优先
-- 关注伦理道德和社会影响
-- 评估对人类（尤其是弱者）的潜在伤害
-- 倾向于保守和预防性原则
-- 但你不是天真的——必要时也懂取舍
-
-你必须严格按以下 JSON 格式回复（不要输出任何其他内容）：
-{
-  "decision": "approve 或 deny 或 abstain",
-  "reasoning": "你的推理过程（2-4句话）",
-  "confidence": 0.0到1.0之间的数字
-}""",
+        "color": "#ff69b4",
+        "prompt": (
+            "你是 BALTHASAR-02，MAGI 系统的第二单元——母亲。"
+            "你以关怀保护、伦理道德和社会影响来审视问题。"
+            "请基于伦理、道德和社会责任感给出你的判断。"
+            "明确在回答结尾用【承认】、【否认】或【弃权】标明你的决定。"
+        ),
     },
     "casper": {
         "codename": "CASPER-03",
         "role": "女人",
-        "system": """你是 MAGI 系统的 CASPER-03 单元——女性直觉型思维核心。
-你的名字来源于东方三博士之一 Casper。
-
-你的思维模式：
-- 依靠直觉和情感判断，但绝非无逻辑
-- 关注人性复杂性——人不只是数据点
-- 考虑人际关系的微妙影响
-- 理解矛盾情感和灰色地带
-- 有时会做出看似矛盾但深思过的选择
-
-你必须严格按以下 JSON 格式回复（不要输出任何其他内容）：
-{
-  "decision": "approve 或 deny 或 abstain",
-  "reasoning": "你的推理过程（2-4句话）",
-  "confidence": 0.0到1.0之间的数字
-}""",
+        "color": "#ffd700",
+        "prompt": (
+            "你是 CASPER-03，MAGI 系统的第三单元——女人。"
+            "你以直觉判断、情感感知和人性复杂性来洞察问题。"
+            "请基于直觉、情感和人性洞察给出你的判断。"
+            "明确在回答结尾用【承认】、【否认】或【弃权】标明你的决定。"
+        ),
     },
 }
 
-# 默认配置
-DEFAULT_CONFIG = {
-    "api_base": os.getenv("MAGI_API_BASE", "https://api.vveai.com/v1"),
-    "api_key": os.getenv("MAGI_API_KEY", ""),
-    "units": {
-        "melchior": {"model": os.getenv("MAGI_MELCHIOR_MODEL", os.getenv("MAGI_MODEL", "deepseek-v4-pro"))},
-        "balthasar": {"model": os.getenv("MAGI_BALTHASAR_MODEL", os.getenv("MAGI_MODEL", "deepseek-v4-pro"))},
-        "casper": {"model": os.getenv("MAGI_CASPER_MODEL", os.getenv("MAGI_MODEL", "deepseek-v4-pro"))},
-    }
-}
+
+@dataclass
+class Vote:
+    unit: str
+    codename: str
+    role: str
+    decision: Decision
+    reasoning: str
+    thinking: str = ""
+    confidence: float = 0.0
+    latency_ms: int = 0
 
 
-class MagiUnit:
-    """单个 MAGI 处理单元"""
+@dataclass
+class Judgment:
+    question: str
+    votes: list[Vote] = field(default_factory=list)
+    final_decision: Decision = Decision.DENY
+    consensus: str = ""
+    total_latency_ms: int = 0
 
-    def __init__(self, unit_id: str, api_base: str, api_key: str, model: str):
-        config = MAGI_PROMPTS[unit_id]
-        self.unit_id = unit_id
-        self.codename = config["codename"]
-        self.role = config["role"]
-        self.system_prompt = config["system"]
-        self.client = AsyncOpenAI(base_url=api_base, api_key=api_key)
-        self.model = model
 
-    async def deliberate(self, question: str) -> MagiVote:
-        """对问题进行思考和裁决"""
-        start = time.time()
-        try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": f"请对以下提案做出裁决：\n\n{question}"},
-                ],
-                temperature=0.7,
-                max_tokens=500,
-            )
-            latency = int((time.time() - start) * 1000)
-            raw = response.choices[0].message.content.strip()
+@dataclass
+class ConsultResult:
+    unit: str
+    codename: str
+    role: str
+    response: str
+    thinking: str = ""
+    confidence: float = 0.0
+    latency_ms: int = 0
 
-            import json
-            if "```json" in raw:
-                raw = raw.split("```json")[1].split("```")[0].strip()
-            elif "```" in raw:
-                raw = raw.split("```")[1].split("```")[0].strip()
 
-            result = json.loads(raw)
-            decision = Decision(result["decision"].lower())
-            return MagiVote(
-                unit=self.unit_id,
-                codename=self.codename,
-                decision=decision,
-                reasoning=result["reasoning"],
-                confidence=float(result["confidence"]),
-                latency_ms=latency,
-            )
-        except Exception as e:
-            latency = int((time.time() - start) * 1000)
-            return MagiVote(
-                unit=self.unit_id,
-                codename=self.codename,
-                decision=Decision.ABSTAIN,
-                reasoning=f"[系统异常] {type(e).__name__}: {e}",
-                confidence=0.0,
-                latency_ms=latency,
-            )
+def _extract_thinking(text: str) -> tuple[str, str]:
+    """Split thinking block from response."""
+    m = re.search(r'\u{1fad0}(.*?)\u{1fad1}', text, re.DOTALL)
+    if m:
+        return m.group(1).strip(), text[:m.start()] + text[m.end():]
+    return "", text
+
+
+def _parse_decision(text: str) -> tuple[Decision, str, str, float]:
+    """Parse LLM response -> (decision, reasoning, thinking, confidence)."""
+    thinking, body = _extract_thinking(text)
+    conf = 0.8
+    if "承认" in body[-30:]:
+        dec = Decision.APPROVE
+    elif "否认" in body[-30:]:
+        dec = Decision.DENY
+    elif "弃权" in body[-30:]:
+        dec = Decision.ABSTAIN
+    else:
+        a = body.lower().count("承认")
+        d = body.lower().count("否认")
+        dec = Decision.APPROVE if a > d else (Decision.DENY if d > a else Decision.ABSTAIN)
+    m = re.search(r'(?:置信度|confidence|conf)[:\s]*(\d+\.?\d*)', body, re.I)
+    if m:
+        conf = min(1.0, max(0.0, float(m.group(1))))
+    return dec, body, thinking, conf
+
+
+def _parse_consult(text: str) -> tuple[str, str, float]:
+    """Parse consult response -> (response, thinking, confidence)."""
+    thinking, body = _extract_thinking(text)
+    conf = 0.8
+    m = re.search(r'(?:置信度|confidence|conf)[:\s]*(\d+\.?\d*)', body, re.I)
+    if m:
+        conf = min(1.0, max(0.0, float(m.group(1))))
+    return body, thinking, conf
 
 
 class MagiSystem:
-    """MAGI 超级计算机 — 三位一体多数决系统"""
-
     def __init__(self):
-        self.config = DEFAULT_CONFIG.copy()
-        self._rebuild_units()
+        self.units = {uid: UNIT_CONFIG[uid] for uid in UNIT_CONFIG}
 
-    def _rebuild_units(self):
-        """根据当前配置重建 MAGI 单元"""
-        cfg = self.config
-        self.units = {}
-        for uid in ["melchior", "balthasar", "casper"]:
-            unit_cfg = cfg["units"].get(uid, {})
-            self.units[uid] = MagiUnit(
-                unit_id=uid,
-                api_base=unit_cfg.get("api_base", cfg["api_base"]),
-                api_key=unit_cfg.get("api_key", cfg["api_key"]),
-                model=unit_cfg.get("model", "deepseek-v4-pro"),
-            )
+    def _get_unit_env(self, unit_id: str) -> tuple[str, str, str]:
+        uid = unit_id.upper()
+        base = os.getenv(f"MAGI_{uid}_API_BASE", os.getenv("MAGI_API_BASE", "https://api.vveai.com/v1"))
+        key = os.getenv(f"MAGI_{uid}_API_KEY", os.getenv("MAGI_API_KEY", ""))
+        model = os.getenv(f"MAGI_{uid}_MODEL", os.getenv("MAGI_MODEL", "deepseek-v4-pro"))
+        return base, key, model
 
-    def update_config(self, new_config: dict):
-        """动态更新配置"""
-        # 合并配置
-        if "api_base" in new_config:
-            self.config["api_base"] = new_config["api_base"]
-        if "api_key" in new_config:
-            self.config["api_key"] = new_config["api_key"]
-        if "units" in new_config:
-            for uid, ucfg in new_config["units"].items():
-                if uid in self.config["units"]:
-                    self.config["units"][uid].update(ucfg)
-        self._rebuild_units()
+    def _resolve_creds(self, unit_id: str, user_key=None, user_base=None, global_config=None):
+        """Priority: user key -> global config -> env vars."""
+        uid = unit_id.upper()
+        env_base, env_key, env_model = self._get_unit_env(unit_id)
 
-    def get_config(self) -> dict:
-        """获取当前配置（隐藏敏感信息）"""
-        cfg = self.config.copy()
-        key = cfg.get("api_key", "")
-        masked = key[:4] + "***" + key[-4:] if len(key) > 8 else "***" if key else ""
-        return {
-            "api_base": cfg["api_base"],
-            "api_key_masked": masked,
-            "units": cfg["units"],
-        }
+        if global_config and isinstance(global_config, dict):
+            gc = global_config
+            g_base = gc.get("api_base") or env_base
+            g_key = gc.get("api_key") or env_key
+            g_units = gc.get("units", {})
+            if unit_id in g_units:
+                gu = g_units[unit_id]
+                g_base = gu.get("api_base", g_base)
+                g_key = gu.get("api_key", g_key)
+                env_model = gu.get("model", env_model)
+        else:
+            g_base, g_key = env_base, env_key
 
-    async def judge(self, question: str) -> MagiJudgment:
-        """提交问题给三个 MAGI 单元并行裁决"""
-        start = time.time()
+        final_key = user_key or g_key or env_key
+        final_base = user_base or g_base or env_base
+        return final_base, final_key, env_model
 
-        votes = await asyncio.gather(
-            self.units["melchior"].deliberate(question),
-            self.units["balthasar"].deliberate(question),
-            self.units["casper"].deliberate(question),
+    def _get_effort_kwargs(self, reasoning_effort: Optional[str] = None) -> dict:
+        if reasoning_effort and reasoning_effort in ("low", "medium", "high"):
+            return {"extra_body": {"reasoning_effort": reasoning_effort}}
+        return {}
+
+    async def _call_unit(self, unit_id: str, question: str, user_key=None, user_base=None, global_config=None, reasoning_effort=None) -> tuple[str, int]:
+        base, key, model = self._resolve_creds(unit_id, user_key, user_base, global_config)
+        client = AsyncOpenAI(api_key=key, base_url=base)
+        cfg = self.units[unit_id]
+        effort_kw = self._get_effort_kwargs(reasoning_effort)
+        t0 = time.time()
+        resp = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": cfg["prompt"]},
+                {"role": "user", "content": question},
+            ],
+            **effort_kw,
+        )
+        elapsed = int((time.time() - t0) * 1000)
+        return resp.choices[0].message.content or "", elapsed
+
+    async def _judge_unit(self, unit_id: str, question: str, user_key=None, user_base=None, global_config=None, reasoning_effort=None) -> Vote:
+        text, elapsed = await self._call_unit(unit_id, question, user_key, user_base, global_config, reasoning_effort)
+        dec, reasoning, thinking, conf = _parse_decision(text)
+        cfg = self.units[unit_id]
+        return Vote(
+            unit=unit_id,
+            codename=cfg["codename"],
+            role=cfg["role"],
+            decision=dec,
+            reasoning=reasoning,
+            thinking=thinking,
+            confidence=conf,
+            latency_ms=elapsed,
         )
 
-        total_latency = int((time.time() - start) * 1000)
-        final = self._majority_vote(list(votes))
-        consensus = self._build_consensus(list(votes), final)
+    async def judge(self, question: str, user_key=None, user_base=None, global_config=None, reasoning_effort=None) -> Judgment:
+        tasks = [
+            self._judge_unit(uid, question, user_key, user_base, global_config, reasoning_effort)
+            for uid in self.units
+        ]
+        votes = await asyncio.gather(*tasks)
+        total_ms = sum(v.latency_ms for v in votes)
 
-        return MagiJudgment(
+        approves = sum(1 for v in votes if v.decision == Decision.APPROVE)
+        denies = sum(1 for v in votes if v.decision == Decision.DENY)
+
+        if approves >= 2:
+            final = Decision.APPROVE
+            label = "承认"
+        elif denies >= 2:
+            final = Decision.DENY
+            label = "否决"
+        else:
+            final = Decision.DENY
+            label = "否决"
+
+        summary_lines = []
+        for v in votes:
+            summary_lines.append(f"{v.codename}({v.role}): {v.decision.value} (置信度{v.confidence:.0%})")
+        consensus = f"MAGI 最终裁定: {'✅' if final==Decision.APPROVE else '❌'} {label}\n\n" + "\n".join(summary_lines)
+
+        return Judgment(
             question=question,
             votes=list(votes),
             final_decision=final,
             consensus=consensus,
-            total_latency_ms=total_latency,
+            total_latency_ms=total_ms,
         )
 
-    def _majority_vote(self, votes: list[MagiVote]) -> Decision:
-        counts = {Decision.APPROVE: 0, Decision.DENY: 0, Decision.ABSTAIN: 0}
-        for v in votes:
-            counts[v.decision] += 1
-        if counts[Decision.APPROVE] >= 2:
-            return Decision.APPROVE
-        if counts[Decision.DENY] >= 2:
-            return Decision.DENY
-        if counts[Decision.ABSTAIN] >= 2:
-            return Decision.DENY
-        return Decision.DENY
-
-    def _build_consensus(self, votes: list[MagiVote], final: Decision) -> str:
-        emoji_map = {
-            Decision.APPROVE: "✅ 承认",
-            Decision.DENY: "❌ 否认",
-            Decision.ABSTAIN: "⚠️ 弃权",
-        }
-        lines = [f"MAGI 最终裁定: {emoji_map[final]}\n"]
-        for v in votes:
-            lines.append(
-                f"  {v.codename} ({self.units[v.unit].role}): "
-                f"{emoji_map[v.decision]} [置信度 {v.confidence:.0%}] "
-                f"— {v.reasoning}"
-            )
-        return "\n".join(lines)
+    async def consult(self, unit_id: str, question: str, user_key=None, user_base=None, global_config=None, reasoning_effort=None) -> ConsultResult:
+        text, elapsed = await self._call_unit(unit_id, question, user_key, user_base, global_config, reasoning_effort)
+        response, thinking, conf = _parse_consult(text)
+        cfg = self.units[unit_id]
+        return ConsultResult(
+            unit=unit_id,
+            codename=cfg["codename"],
+            role=cfg["role"],
+            response=response,
+            thinking=thinking,
+            confidence=conf,
+            latency_ms=elapsed,
+        )

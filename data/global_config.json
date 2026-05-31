@@ -1,0 +1,16 @@
+{
+  "api_base": "https://api.vveai.com/v1",
+  "api_key": "",
+  "reasoning_effort": null,
+  "units": {
+    "melchior": {
+      "model": "deepseek-v4-pro"
+    },
+    "balthasar": {
+      "model": "deepseek-v4-pro"
+    },
+    "casper": {
+      "model": "deepseek-v4-pro"
+    }
+  }
+}

@@ -1,28 +1,38 @@
-"""Conversation routes — user & admin"""
+"""Conversation router — history, export"""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse
+from app.auth import get_current_user
+from app.models import conv_store, rate_limiter
+import csv, io, json
 
-from app.auth import get_current_user, get_current_admin
-from app.models import conv_store
-
-router = APIRouter(prefix="/api", tags=["conversations"])
-
-
-@router.get("/conversations")
-async def list_my_conversations(current_user=Depends(get_current_user)):
-    return conv_store.list_by_user(current_user["id"], limit=200)
+router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
 
-@router.get("/conversations/export")
-async def export_my_conversations(current_user=Depends(get_current_user)):
-    return conv_store.export_user(current_user["id"])
+@router.get("")
+async def list_conversations(user=Depends(get_current_user)):
+    limit = 50
+    if user["role"] == "admin":
+        return conv_store.list_all(limit)
+    return conv_store.list_by_user(user["id"], limit)
 
 
-@router.get("/admin/conversations")
-async def list_all_conversations(current_user=Depends(get_current_admin)):
-    return conv_store.list_all(limit=500)
+@router.get("/export")
+async def export_conversations(format: str = "json", user=Depends(get_current_user)):
+    if user["role"] == "admin":
+        data = conv_store.export_all()
+    else:
+        data = conv_store.export_user(user["id"])
 
-
-@router.get("/admin/conversations/export")
-async def export_all_conversations(current_user=Depends(get_current_admin)):
-    return conv_store.export_all()
+    if format == "csv":
+        output = io.StringIO()
+        if data:
+            writer = csv.DictWriter(output, fieldnames=data[0].keys())
+            writer.writeheader()
+            writer.writerows(data)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=magi_conversations.csv"},
+        )
+    return JSONResponse(content=data)

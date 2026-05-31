@@ -1,83 +1,76 @@
-"""Admin routes — user management, global config, conversation oversight"""
+"""Admin router — user management + global config"""
 
-import uuid
-
-from fastapi import APIRouter, Depends, HTTPException, status
-
-from app.auth import get_current_admin, hash_password
-from app.models import (
-    user_store,
-    global_config_store,
-    UserCreate,
-    UserUpdate,
-    GlobalConfigUpdate,
-)
+from fastapi import APIRouter, Depends, HTTPException
+from app.auth import require_admin, hash_password
+from app.models import user_store, global_config_store, UserUpdate, GlobalConfigUpdate
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
-# ─── User Management ─────────────────────────────────────
-
 @router.get("/users")
-async def list_users(_: dict = Depends(get_current_admin)):
+async def list_users(admin=Depends(require_admin)):
     users = user_store.list_users()
-    # Strip password_hash from response
-    return [
-        {k: v for k, v in u.items() if k != "password_hash"}
-        for u in users
-    ]
-
-
-@router.post("/users", status_code=status.HTTP_201_CREATED)
-async def create_user(body: UserCreate, _: dict = Depends(get_current_admin)):
-    if user_store.get_user_by_username(body.username):
-        raise HTTPException(400, "Username already exists")
-    user_id = str(uuid.uuid4())
-    user = user_store.create_user(
-        user_id=user_id,
-        username=body.username,
-        password_hash=hash_password(body.password),
-        role=body.role,
-    )
-    return {k: v for k, v in user.items() if k != "password_hash"}
+    result = []
+    for u in users:
+        result.append({
+            "id": u["id"],
+            "username": u["username"],
+            "role": u["role"],
+            "is_active": u.get("is_active", True),
+            "tpm_limit": u.get("tpm_limit", 0),
+            "tpd_limit": u.get("tpd_limit", 0),
+            "has_api_key": bool(u.get("api_key")),
+            "created_at": u.get("created_at", 0),
+        })
+    return result
 
 
 @router.put("/users/{user_id}")
-async def update_user(user_id: str, body: UserUpdate, admin: dict = Depends(get_current_admin)):
-    existing = user_store.get_user(user_id)
-    if not existing:
+async def update_user(user_id: str, body: UserUpdate, admin=Depends(require_admin)):
+    updates = {}
+    if body.username is not None:
+        updates["username"] = body.username
+    if body.password is not None:
+        updates["password_hash"] = hash_password(body.password)
+    if body.role is not None:
+        updates["role"] = body.role
+    if body.is_active is not None:
+        updates["is_active"] = body.is_active
+    if body.tpm_limit is not None:
+        updates["tpm_limit"] = body.tpm_limit
+    if body.tpd_limit is not None:
+        updates["tpd_limit"] = body.tpd_limit
+    user = user_store.update_user(user_id, updates)
+    if not user:
         raise HTTPException(404, "User not found")
-    updates = body.model_dump(exclude_none=True)
-    # Handle password separately
-    if "password" in updates:
-        updates["password_hash"] = hash_password(updates.pop("password"))
-    updated = user_store.update_user(user_id, updates)
-    if not updated:
-        raise HTTPException(500, "Update failed")
-    return {k: v for k, v in updated.items() if k != "password_hash"}
+    return {"status": "ok"}
 
 
 @router.delete("/users/{user_id}")
-async def delete_user(user_id: str, admin: dict = Depends(get_current_admin)):
-    user = user_store.get_user(user_id)
-    if not user:
+async def delete_user(user_id: str, admin=Depends(require_admin)):
+    ok = user_store.delete_user(user_id)
+    if not ok:
         raise HTTPException(404, "User not found")
-    if user["username"] == "admin":
-        raise HTTPException(403, "Cannot delete the default admin")
-    if not user_store.delete_user(user_id):
-        raise HTTPException(500, "Delete failed")
-    return {"ok": True}
+    return {"status": "ok"}
 
-
-# ─── Global Config ───────────────────────────────────────
 
 @router.get("/config")
-async def get_config(_: dict = Depends(get_current_admin)):
-    return global_config_store.get_masked()
+async def get_config(admin=Depends(require_admin)):
+    return global_config_store.get()
 
 
 @router.put("/config")
-async def update_config(body: GlobalConfigUpdate, _: dict = Depends(get_current_admin)):
-    updates = body.model_dump(exclude_none=True)
-    updated = global_config_store.update(updates)
-    return global_config_store.get_masked()
+async def update_config(body: GlobalConfigUpdate, admin=Depends(require_admin)):
+    updates = {}
+    if body.api_base is not None:
+        updates["api_base"] = body.api_base
+    if body.api_key is not None:
+        updates["api_key"] = body.api_key
+    if body.units is not None:
+        updates["units"] = body.units
+    if body.reasoning_effort is not None:
+        if body.reasoning_effort not in ("low", "medium", "high"):
+            raise HTTPException(400, "reasoning_effort must be low/medium/high")
+        updates["reasoning_effort"] = body.reasoning_effort
+    config = global_config_store.update(updates)
+    return config

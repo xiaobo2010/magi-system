@@ -1,300 +1,314 @@
-"""MAGI System Frontend — NERV Terminal UI v2.0 with Auth"""
-
-
-def render_html() -> str:
-    return r'''<!DOCTYPE html>
+def render_html():
+    return """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MAGI SYSTEM — NERV Terminal</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MAGI SYSTEM</title>
 <style>
-  :root {
-    --bg: #0a0a0f; --panel: #0d0d18; --border: #1a3a1a;
-    --accent: #00ff41; --accent2: #ff6600; --warn: #ff3333;
-    --text: #00ff41; --text-dim: #007a20; --text-bright: #66ff88;
-    --melchior: #4488ff; --balthasar: #ff4488; --casper: #ffaa00;
-    --card: #111122;
-  }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--bg); color:var(--text); font-family:'Courier New',monospace; min-height:100vh; overflow-x:hidden; }
-  body::after { content:''; position:fixed; top:0;left:0;right:0;bottom:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,65,0.015) 2px,rgba(0,255,65,0.015) 4px); pointer-events:none; z-index:9999; }
-
-  /* Login */
-  #login-page { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
-  .login-box { background:var(--panel); border:1px solid var(--border); padding:40px; width:100%; max-width:420px; position:relative; }
-  .login-box::before { content:'MAGI AUTHENTICATION'; position:absolute; top:-12px;left:20px; background:var(--bg); padding:0 10px; font-size:12px; color:var(--accent); letter-spacing:3px; }
-  .nerv-logo { text-align:center; margin-bottom:30px; font-size:28px; font-weight:bold; color:var(--accent2); letter-spacing:8px; text-shadow:0 0 20px rgba(255,102,0,0.5); }
-  .nerv-logo small { display:block; font-size:11px; color:var(--text-dim); letter-spacing:2px; margin-top:4px; }
-  .login-field { margin-bottom:16px; }
-  .login-field label { display:block; font-size:11px; color:var(--text-dim); letter-spacing:2px; margin-bottom:4px; }
-  .login-field input { width:100%; padding:10px 14px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-family:'Courier New',monospace; font-size:14px; outline:none; transition:border-color .3s; }
-  .login-field input:focus { border-color:var(--accent); box-shadow:0 0 8px rgba(0,255,65,0.2); }
-  .login-btn { width:100%; padding:12px; background:transparent; border:1px solid var(--accent); color:var(--accent); font-family:'Courier New',monospace; font-size:14px; letter-spacing:3px; cursor:pointer; margin-top:10px; transition:all .3s; }
-  .login-btn:hover { background:var(--accent); color:var(--bg); box-shadow:0 0 20px rgba(0,255,65,0.3); }
-  .login-error { color:var(--warn); font-size:12px; text-align:center; margin-top:10px; min-height:18px; }
-
-  /* App */
-  #app-page { display:none; }
-  .top-bar { display:flex; align-items:center; justify-content:space-between; padding:8px 20px; border-bottom:1px solid var(--border); background:var(--panel); font-size:12px; flex-wrap:wrap; gap:8px; }
-  .top-bar-left { display:flex; align-items:center; gap:20px; }
-  .top-bar .nerv-mark { color:var(--accent2); font-size:16px; font-weight:bold; letter-spacing:4px; }
-  .top-bar .status-text { color:var(--text-dim); letter-spacing:1px; }
-  .top-bar-right { display:flex; align-items:center; gap:12px; }
-  .user-badge { color:var(--accent); border:1px solid var(--border); padding:3px 10px; font-size:11px; letter-spacing:1px; }
-  .user-badge.admin { border-color:var(--accent2); color:var(--accent2); }
-  .logout-btn { background:transparent; border:1px solid var(--warn); color:var(--warn); padding:3px 10px; font-family:'Courier New',monospace; font-size:11px; cursor:pointer; letter-spacing:1px; transition:all .2s; }
-  .logout-btn:hover { background:var(--warn); color:var(--bg); }
-
-  /* Tabs */
-  .tab-bar { display:flex; border-bottom:1px solid var(--border); background:var(--panel); padding:0 16px; overflow-x:auto; }
-  .tab-btn { background:transparent; border:none; border-bottom:2px solid transparent; color:var(--text-dim); font-family:'Courier New',monospace; font-size:12px; padding:10px 16px; cursor:pointer; letter-spacing:1px; white-space:nowrap; transition:all .2s; }
-  .tab-btn:hover { color:var(--text); }
-  .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
-  .tab-content { display:none; }
-  .tab-content.active { display:block; }
-
-  /* Judge */
-  .magi-container { max-width:900px; margin:0 auto; padding:20px; }
-  .question-box textarea { width:100%; height:80px; padding:12px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-family:'Courier New',monospace; font-size:14px; resize:vertical; outline:none; }
-  .question-box textarea:focus { border-color:var(--accent); }
-  .judge-btn { padding:10px 30px; background:transparent; border:1px solid var(--accent); color:var(--accent); font-family:'Courier New',monospace; font-size:14px; letter-spacing:2px; cursor:pointer; transition:all .3s; }
-  .judge-btn:hover { background:var(--accent); color:var(--bg); box-shadow:0 0 20px rgba(0,255,65,0.3); }
-  .judge-btn:disabled { opacity:.4; cursor:not-allowed; }
-
-  /* Vote Cards */
-  .votes-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; margin-top:20px; }
-  .vote-card { border:1px solid var(--border); background:var(--card); padding:16px; position:relative; }
-  .vote-card::before { content:''; position:absolute; top:0;left:0;width:4px;height:100%; }
-  .vote-card.melchior::before { background:var(--melchior); }
-  .vote-card.balthasar::before { background:var(--balthasar); }
-  .vote-card.casper::before { background:var(--casper); }
-  .vote-header { display:flex; justify-content:space-between; margin-bottom:8px; font-size:11px; letter-spacing:2px; }
-  .vote-header .unit-name { font-weight:bold; }
-  .vote-card.melchior .unit-name { color:var(--melchior); }
-  .vote-card.balthasar .unit-name { color:var(--balthasar); }
-  .vote-card.casper .unit-name { color:var(--casper); }
-  .vote-decision { font-size:20px; font-weight:bold; margin:8px 0; }
-  .vote-decision.approve { color:var(--accent); }
-  .vote-decision.deny { color:var(--warn); }
-  .vote-reason { font-size:12px; color:var(--text-dim); line-height:1.6; max-height:120px; overflow-y:auto; }
-  .vote-meta { margin-top:8px; font-size:10px; color:var(--text-dim); display:flex; justify-content:space-between; }
-
-  /* Result Banner */
-  .result-banner { margin-top:24px; padding:16px 20px; border:1px solid; text-align:center; font-size:16px; letter-spacing:3px; animation:banner-glow 2s ease-in-out infinite alternate; }
-  .result-banner.approve { border-color:var(--accent); color:var(--accent); background:rgba(0,255,65,0.05); }
-  .result-banner.deny { border-color:var(--warn); color:var(--warn); background:rgba(255,51,51,0.05); }
-  @keyframes banner-glow { from{box-shadow:0 0 5px rgba(0,255,65,0.1)} to{box-shadow:0 0 25px rgba(0,255,65,0.2)} }
-  .result-banner small { display:block; margin-top:6px; font-size:11px; color:var(--text-dim); letter-spacing:1px; }
-
-  /* Config */
-  .config-section { max-width:700px; margin:0 auto; padding:20px; }
-  .config-group { margin-bottom:20px; border:1px solid var(--border); padding:16px; background:var(--card); }
-  .config-group h3 { font-size:12px; letter-spacing:2px; color:var(--accent); margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:6px; }
-  .config-row { display:flex; align-items:center; margin-bottom:10px; gap:10px; }
-  .config-row label { font-size:11px; color:var(--text-dim); letter-spacing:1px; min-width:120px; }
-  .config-row input,.config-row select { flex:1; padding:6px 10px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-family:'Courier New',monospace; font-size:12px; outline:none; }
-  .config-row input:focus,.config-row select:focus { border-color:var(--accent); }
-  .save-btn { padding:8px 24px; background:transparent; border:1px solid var(--accent); color:var(--accent); font-family:'Courier New',monospace; font-size:12px; letter-spacing:2px; cursor:pointer; transition:all .2s; }
-  .save-btn:hover { background:var(--accent); color:var(--bg); }
-
-  /* Admin Table */
-  .admin-section { max-width:900px; margin:0 auto; padding:20px; }
-  .data-table { width:100%; border-collapse:collapse; font-size:12px; }
-  .data-table th,.data-table td { border:1px solid var(--border); padding:8px 12px; text-align:left; }
-  .data-table th { background:var(--panel); color:var(--accent); letter-spacing:1px; font-weight:normal; }
-  .data-table td { color:var(--text-dim); }
-  .data-table tr:hover td { color:var(--text); background:rgba(0,255,65,0.03); }
-  .tbl-btn { padding:3px 8px; border:1px solid; background:transparent; font-family:'Courier New',monospace; font-size:10px; cursor:pointer; letter-spacing:1px; margin-right:4px; }
-  .tbl-btn.edit { border-color:var(--accent); color:var(--accent); }
-  .tbl-btn.edit:hover { background:var(--accent); color:var(--bg); }
-  .tbl-btn.del { border-color:var(--warn); color:var(--warn); }
-  .tbl-btn.del:hover { background:var(--warn); color:var(--bg); }
-
-  /* Conversations */
-  .conv-list { max-width:900px; margin:0 auto; padding:20px; }
-  .conv-entry { border:1px solid var(--border); padding:14px; margin-bottom:12px; background:var(--card); cursor:pointer; transition:border-color .2s; }
-  .conv-entry:hover { border-color:var(--accent); }
-  .conv-q { font-size:13px; color:var(--text-bright); margin-bottom:6px; }
-  .conv-result { font-size:12px; margin-bottom:4px; }
-  .conv-result.approve { color:var(--accent); }
-  .conv-result.deny { color:var(--warn); }
-  .conv-time { font-size:10px; color:var(--text-dim); letter-spacing:1px; }
-  .conv-detail { display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); }
-  .conv-entry.expanded .conv-detail { display:block; }
-  .conv-vote-mini { font-size:11px; margin-bottom:6px; padding-left:8px; border-left:2px solid var(--border); }
-  .export-btn { padding:6px 16px; background:transparent; border:1px solid var(--accent2); color:var(--accent2); font-family:'Courier New',monospace; font-size:11px; letter-spacing:1px; cursor:pointer; margin-bottom:16px; transition:all .2s; }
-  .export-btn:hover { background:var(--accent2); color:var(--bg); }
-
-  /* Modal */
-  .modal-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; }
-  .modal-overlay.show { display:flex; }
-  .modal-box { background:var(--panel); border:1px solid var(--border); padding:24px; width:90%; max-width:420px; }
-  .modal-box h4 { font-size:12px; color:var(--accent); letter-spacing:2px; margin-bottom:16px; }
-  .modal-field { margin-bottom:12px; }
-  .modal-field label { display:block; font-size:10px; color:var(--text-dim); letter-spacing:1px; margin-bottom:3px; }
-  .modal-field input,.modal-field select { width:100%; padding:6px 10px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-family:'Courier New',monospace; font-size:12px; outline:none; }
-  .modal-actions { display:flex; gap:10px; margin-top:16px; }
-  .modal-actions button { flex:1; padding:8px; background:transparent; border:1px solid var(--accent); color:var(--accent); font-family:'Courier New',monospace; font-size:12px; cursor:pointer; letter-spacing:1px; }
-  .modal-actions button.cancel { border-color:var(--text-dim); color:var(--text-dim); }
-  .modal-actions button:hover { background:var(--accent); color:var(--bg); }
-  .modal-actions button.cancel:hover { background:var(--text-dim); }
-
-  .loading-text { color:var(--text-dim); font-size:12px; letter-spacing:2px; text-align:center; padding:20px; }
-  .empty-text { color:var(--text-dim); font-size:12px; text-align:center; padding:30px; letter-spacing:1px; }
-  .toast { position:fixed; bottom:20px; right:20px; padding:10px 20px; background:var(--panel); border:1px solid var(--accent); color:var(--accent); font-family:'Courier New',monospace; font-size:12px; z-index:2000; opacity:0; transition:opacity .3s; letter-spacing:1px; }
-  .toast.error { border-color:var(--warn); color:var(--warn); }
-  .toast.show { opacity:1; }
-
-  @media(max-width:600px) {
-    .top-bar{padding:6px 10px} .magi-container,.config-section,.admin-section,.conv-list{padding:12px}
-    .votes-grid{grid-template-columns:1fr} .data-table{font-size:10px} .data-table th,.data-table td{padding:5px 6px}
-  }
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a12;--panel:#12121e;--border:#1a3a5c;--text:#c0c8d8;--muted:#5a6a7a;
+--blue:#00d4ff;--pink:#ff69b4;--gold:#ffd700;--green:#00ff88;--red:#ff4444}
+@keyframes scanline{0%{top:-100%}100%{top:100%}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+body{background:var(--bg);color:var(--text);font-family:'Courier New',monospace;
+min-height:100vh;overflow-x:hidden;position:relative}
+body::after{content:'';position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;
+background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.015) 2px,rgba(0,212,255,.015) 4px);
+z-index:9999}
+.scanline{position:fixed;top:-100%;left:0;right:0;height:200px;
+background:linear-gradient(transparent,rgba(0,212,255,.03),transparent);
+animation:scanline 8s linear infinite;pointer-events:none;z-index:9998}
+.header{background:var(--panel);border-bottom:1px solid var(--border);
+padding:12px 20px;display:flex;justify-content:space-between;align-items:center}
+.header h1{color:var(--blue);font-size:1.2em;letter-spacing:3px;text-transform:uppercase}
+.header h1 span{color:var(--red);margin:0 6px}
+.user-info{font-size:.85em;color:var(--muted);display:flex;align-items:center;gap:10px}
+.user-info button{background:none;border:1px solid var(--border);color:var(--muted);
+padding:4px 12px;cursor:pointer;font-family:inherit;font-size:.85em}
+.user-info button:hover{border-color:var(--blue);color:var(--blue)}
+.mode-bar{display:flex;gap:8px;padding:12px 20px;background:var(--panel);
+border-bottom:1px solid var(--border)}
+.mode-btn{padding:8px 16px;background:transparent;border:1px solid var(--border);
+color:var(--muted);cursor:pointer;font-family:inherit;font-size:.85em;transition:all .2s}
+.mode-btn.active{border-color:var(--blue);color:var(--blue);background:rgba(0,212,255,.08)}
+.mode-btn:hover{border-color:var(--blue);color:var(--blue)}
+.unit-btns{display:flex;gap:6px;margin-left:auto}
+.unit-btn{padding:6px 14px;border:1px solid var(--border);background:transparent;
+font-family:inherit;font-size:.8em;cursor:pointer;transition:all .2s}
+.unit-btn[data-u="melchior"]{color:var(--blue)}
+.unit-btn[data-u="balthasar"]{color:var(--pink)}
+.unit-btn[data-u="casper"]{color:var(--gold)}
+.unit-btn.active{opacity:1;background:rgba(255,255,255,.06)}
+.unit-btn:not(.active){opacity:.4}
+.chat{flex:1;padding:20px;max-width:900px;margin:0 auto;overflow-y:auto;height:calc(100vh - 280px)}
+.msg{margin:16px 0;animation:fadein .3s ease}
+.msg-user{text-align:right}
+.msg-user .bubble{display:inline-block;background:rgba(0,212,255,.1);border:1px solid var(--blue);
+border-radius:12px 12px 2px 12px;padding:10px 16px;max-width:70%;text-align:left}
+.msg-result{text-align:center;margin:20px 0}
+.result-box{display:inline-block;padding:16px 28px;border-radius:8px;font-size:1.1em;font-weight:bold}
+.result-approve{border:2px solid var(--green);color:var(--green);background:rgba(0,255,136,.06)}
+.result-deny{border:2px solid var(--red);color:var(--red);background:rgba(255,68,68,.06)}
+.result-approve .icon{animation:pulse 1.5s ease infinite}
+.msg-vote{margin:12px 0;padding:10px 16px;border-left:3px solid var(--muted);
+background:rgba(255,255,255,.02);border-radius:0 8px 8px 0}
+.msg-vote[data-u="melchior"]{border-left-color:var(--blue)}
+.msg-vote[data-u="balthasar"]{border-left-color:var(--pink)}
+.msg-vote[data-u="casper"]{border-left-color:var(--gold)}
+.vote-header{font-size:.85em;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.vote-header .tag{padding:2px 8px;border-radius:3px;font-size:.75em;font-weight:bold}
+.tag-approve{background:rgba(0,255,136,.15);color:var(--green)}
+.tag-deny{background:rgba(255,68,68,.15);color:var(--red)}
+.tag-abstain{background:rgba(255,215,0,.15);color:var(--gold)}
+.thinking-toggle{font-size:.75em;color:var(--muted);cursor:pointer;margin-top:6px;
+border:none;background:none;font-family:inherit;text-decoration:underline}
+.thinking-block{display:none;margin-top:6px;padding:8px;background:rgba(0,0,0,.3);
+border-radius:4px;font-size:.85em;color:var(--muted);white-space:pre-wrap}
+.thinking-block.show{display:block}
+.msg-consult{margin:12px 0;padding:12px 16px;border-left:3px solid;background:rgba(255,255,255,.02);
+border-radius:0 8px 8px 0}
+.msg-consult[data-u="melchior"]{border-left-color:var(--blue)}
+.msg-consult[data-u="balthasar"]{border-left-color:var(--pink)}
+.msg-consult[data-u="casper"]{border-left-color:var(--gold)}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--muted);
+border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle}
+.input-area{position:fixed;bottom:0;left:0;right:0;background:var(--panel);
+border-top:1px solid var(--border);padding:12px 20px}
+.input-wrap{max-width:900px;margin:0 auto;display:flex;gap:10px;align-items:center}
+.input-wrap textarea{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);
+padding:10px 14px;border-radius:8px;font-family:inherit;font-size:.95em;resize:none;outline:none;
+min-height:44px;max-height:120px}
+.input-wrap textarea:focus{border-color:var(--blue)}
+.input-wrap button{background:var(--blue);color:var(--bg);border:none;padding:10px 20px;
+border-radius:8px;font-family:inherit;font-weight:bold;cursor:pointer;font-size:.95em}
+.input-wrap button:hover{opacity:.85}
+.input-wrap button:disabled{opacity:.4;cursor:not-allowed}
+.config-toggle{position:fixed;bottom:70px;right:20px;background:var(--panel);
+border:1px solid var(--border);color:var(--muted);padding:6px 12px;cursor:pointer;
+font-family:inherit;font-size:.8em;border-radius:4px;z-index:10}
+.config-panel{display:none;position:fixed;bottom:110px;right:20px;width:360px;
+background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;z-index:10}
+.config-panel.show{display:block}
+.config-panel label{display:block;color:var(--muted);font-size:.8em;margin:8px 0 4px}
+.config-panel input,.config-panel select{width:100%;background:var(--bg);border:1px solid var(--border);
+color:var(--text);padding:6px 10px;border-radius:4px;font-family:inherit;font-size:.85em}
+.config-panel button{margin-top:12px;background:var(--blue);color:var(--bg);border:none;
+padding:6px 16px;border-radius:4px;cursor:pointer;font-family:inherit}
+.settings-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+background:rgba(0,0,0,.7);z-index:100;justify-content:center;align-items:center}
+.settings-modal.show{display:flex}
+.settings-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+padding:24px;width:90%;max-width:400px}
+.settings-box h2{color:var(--blue);font-size:1em;margin-bottom:16px;letter-spacing:2px}
+.settings-box label{display:block;color:var(--muted);font-size:.8em;margin:10px 0 4px}
+.settings-box input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
+padding:8px 12px;border-radius:4px;font-family:inherit;font-size:.9em}
+.settings-box .btn-row{display:flex;gap:10px;margin-top:16px}
+.settings-box .btn-row button{flex:1;padding:8px;border-radius:4px;font-family:inherit;cursor:pointer}
+.login-page{display:flex;justify-content:center;align-items:center;min-height:100vh}
+.login-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+padding:32px;width:90%;max-width:380px}
+.login-box h2{color:var(--blue);text-align:center;letter-spacing:3px;margin-bottom:24px}
+.login-box input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
+padding:10px 14px;margin-bottom:12px;border-radius:4px;font-family:inherit}
+.login-box button{width:100%;background:var(--blue);color:var(--bg);border:none;
+padding:10px;border-radius:4px;font-family:inherit;font-weight:bold;cursor:pointer;font-size:1em}
+.login-box .toggle{color:var(--muted);font-size:.85em;text-align:center;margin-top:12px;cursor:pointer}
+.login-box .toggle:hover{color:var(--blue)}
+.latency{font-size:.75em;color:var(--muted);margin-top:4px}
+@media(max-width:600px){.chat{height:calc(100vh - 260px);padding:12px}
+.msg-user .bubble{max-width:85%}.header h1{font-size:1em}.config-panel{width:calc(100% - 40px);right:20px}}
 </style>
 </head>
 <body>
-
-<div id="login-page">
-  <div class="login-box">
-    <div class="nerv-logo">NERV<small>SECRET — AUTHORIZATION REQUIRED</small></div>
-    <div class="login-field"><label>OPERATOR ID</label><input type="text" id="login-user" autocomplete="username" autofocus></div>
-    <div class="login-field"><label>ACCESS CODE</label><input type="password" id="login-pass" autocomplete="current-password"></div>
-    <button class="login-btn" onclick="doLogin()">AUTHENTICATE</button>
-    <div class="login-error" id="login-error"></div>
-  </div>
-</div>
-
-<div id="app-page">
-  <div class="top-bar">
-    <div class="top-bar-left"><span class="nerv-mark">NERV</span><span class="status-text" id="conn-status">● MAGI ONLINE</span></div>
-    <div class="top-bar-right"><span class="user-badge" id="user-badge"></span><button class="logout-btn" onclick="doLogout()">DISCONNECT</button></div>
-  </div>
-  <div class="tab-bar">
-    <button class="tab-btn active" data-tab="judge" onclick="switchTab('judge')">MAGI JUDGE</button>
-    <button class="tab-btn" data-tab="conversations" onclick="switchTab('conversations')">RECORDS</button>
-    <button class="tab-btn" data-tab="config" id="tab-config" onclick="switchTab('config')">CONFIG</button>
-    <button class="tab-btn" data-tab="admin" id="tab-admin" style="display:none" onclick="switchTab('admin')">ADMIN</button>
-  </div>
-
-  <div class="tab-content active" id="tab-judge">
-    <div class="magi-container">
-      <div class="question-box">
-        <textarea id="question-input" placeholder="> 向 MAGI 提交裁决请求..."></textarea>
-        <div style="margin-top:10px;display:flex;align-items:center;gap:12px">
-          <button class="judge-btn" id="judge-btn" onclick="submitJudge()">▶ EXECUTE JUDGMENT</button>
-          <span id="judge-status" style="font-size:11px;color:var(--text-dim)"></span>
-        </div>
-      </div>
-      <div id="judge-result"></div>
-    </div>
-  </div>
-
-  <div class="tab-content" id="tab-conversations">
-    <div class="conv-list">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <h3 style="font-size:12px;letter-spacing:2px;color:var(--accent)">CONVERSATION LOG</h3>
-        <button class="export-btn" onclick="exportConversations()">⬇ EXPORT</button>
-      </div>
-      <div id="conv-container"><div class="loading-text">LOADING...</div></div>
-    </div>
-  </div>
-
-  <div class="tab-content" id="tab-config">
-    <div class="config-section">
-      <div class="config-group"><h3>GLOBAL API CONFIGURATION</h3>
-        <div class="config-row"><label>API BASE URL</label><input type="text" id="cfg-api-base" placeholder="https://api.vveai.com/v1"></div>
-        <div class="config-row"><label>DEFAULT API KEY</label><input type="password" id="cfg-api-key" placeholder="sk-***"></div>
-      </div>
-      <div class="config-group"><h3>MAGI UNIT MODELS</h3>
-        <div class="config-row"><label style="color:var(--melchior)">MELCHIOR-01</label><select id="cfg-melchior"><option value="deepseek-v4-pro">deepseek-v4-pro</option><option value="claude-sonnet-4">claude-sonnet-4</option><option value="gpt-4o">gpt-4o</option></select></div>
-        <div class="config-row"><label style="color:var(--balthasar)">BALTHASAR-02</label><select id="cfg-balthasar"><option value="deepseek-v4-pro">deepseek-v4-pro</option><option value="claude-sonnet-4">claude-sonnet-4</option><option value="gpt-4o">gpt-4o</option></select></div>
-        <div class="config-row"><label style="color:var(--casper)">CASPER-03</label><select id="cfg-casper"><option value="deepseek-v4-pro">deepseek-v4-pro</option><option value="claude-sonnet-4">claude-sonnet-4</option><option value="gpt-4o">gpt-4o</option></select></div>
-      </div>
-      <button class="save-btn" onclick="saveConfig()">SAVE CONFIGURATION</button>
-    </div>
-  </div>
-
-  <div class="tab-content" id="tab-admin">
-    <div class="admin-section">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <h3 style="font-size:12px;letter-spacing:2px;color:var(--accent)">USER MANAGEMENT</h3>
-        <button class="save-btn" onclick="showUserModal()">+ NEW USER</button>
-      </div>
-      <table class="data-table"><thead><tr><th>ID</th><th>USERNAME</th><th>ROLE</th><th>STATUS</th><th>TPM</th><th>TPD</th><th>CREATED</th><th>ACTIONS</th></tr></thead>
-      <tbody id="user-tbody"><tr><td colspan="8" class="loading-text">LOADING...</td></tr></tbody></table>
-      <div style="margin-top:30px;display:flex;align-items:center;justify-content:space-between">
-        <h3 style="font-size:12px;letter-spacing:2px;color:var(--accent)">ALL CONVERSATIONS</h3>
-        <button class="export-btn" onclick="exportAllConversations()">⬇ EXPORT ALL</button>
-      </div>
-      <div id="admin-conv-container" style="margin-top:12px"><div class="loading-text">LOADING...</div></div>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="user-modal"><div class="modal-box">
-  <h4 id="modal-title">CREATE USER</h4>
-  <div class="modal-field"><label>USERNAME</label><input type="text" id="modal-username"></div>
-  <div class="modal-field"><label>PASSWORD</label><input type="password" id="modal-password"></div>
-  <div class="modal-field"><label>ROLE</label><select id="modal-role"><option value="user">user</option><option value="admin">admin</option></select></div>
-  <div class="modal-field"><label>TPM (0=unlimited)</label><input type="number" id="modal-tpm" value="0" min="0"></div>
-  <div class="modal-field"><label>TPD (0=unlimited)</label><input type="number" id="modal-tpd" value="0" min="0"></div>
-  <input type="hidden" id="modal-edit-id">
-  <div class="modal-actions"><button class="cancel" onclick="closeUserModal()">CANCEL</button><button onclick="saveUserModal()">SAVE</button></div>
-</div></div>
-
-<div class="toast" id="toast"></div>
-
+<div class="scanline"></div>
+<div id="app"></div>
 <script>
-let authToken=localStorage.getItem('magi_token')||'',currentUser=null,allUsers=[];
+const U={
+  melchior:{codename:'MELCHIOR-01',role:'科学家',color:'#00d4ff'},
+  balthasar:{codename:'BALTHASAR-02',role:'母亲',color:'#ff69b4'},
+  casper:{codename:'CASPER-03',role:'女人',color:'#ffd700'}
+};
+let state={token:null,user:null,mode:'judge',unit:'melchior',msgs:[],loading:false};
 
-async function api(p,o={}){const h={'Content-Type':'application/json'};if(authToken)h['Authorization']='Bearer '+authToken;const r=await fetch(p,{...o,headers:{...h,...o.headers}});if(r.status===401){doLogout();throw new Error('Unauthorized')}if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||'Request failed')}return r.json()}
+function html(t){const d=document.createElement('div');d.innerHTML=t;return d.firstElementChild}
+function qs(s,p){return(p||document).querySelector(s)}
+function qsa(s,p){return[...(p||document).querySelectorAll(s)]}
 
-function toast(m,e=false){const el=document.getElementById('toast');el.textContent=m;el.className='toast'+(e?' error':'')+' show';setTimeout(()=>el.className='toast',2500)}
+function render(){
+  if(!state.token)return renderLogin();
+  const app=qs('#app');
+  app.innerHTML=`
+  <div class="header"><h1>MAGI<span>|</span>SYSTEM</h1>
+  <div class="user-info"><span>${state.user?.username||''}</span>
+  <button onclick="showSettings()">⚙</button><button onclick="logout()">登出</button></div></div>
+  <div class="mode-bar">
+  <button class="mode-btn ${state.mode==='judge'?'active':''}" onclick="setMode('judge')">⚖ 三贤人裁决</button>
+  <button class="mode-btn ${state.mode==='consult'?'active':''}" onclick="setMode('consult')">◈ 单通道咨询</button>
+  ${state.mode==='consult'?`<div class="unit-btns">${Object.entries(U).map(([k,v])=>
+  `<button class="unit-btn ${state.unit===k?'active':''}" data-u="${k}" onclick="setUnit('${k}')">${v.codename}</button>`
+  ).join('')}</div>`:''}</div>
+  <div class="chat" id="chat"></div>
+  <button class="config-toggle" onclick="toggleConfig()">⚙ 配置</button>
+  <div class="config-panel" id="cfgPanel"></div>
+  <div class="input-area"><div class="input-wrap">
+  <textarea id="q" placeholder="${state.mode==='judge'?'向 MAGI 提出提案...':'向 '+U[state.unit].codename+' 咨询...'}" rows="1"
+  onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submit()}"></textarea>
+  <button onclick="submit()" ${state.loading?'disabled':''}>${state.loading?'⏳':'▶'}</button>
+  </div></div>
+  <div class="settings-modal" id="settModal"></div>`;
+  renderChat();
+  if(state.user?.role==='admin')renderConfig();
+}
 
-async function doLogin(){const u=document.getElementById('login-user').value.trim(),p=document.getElementById('login-pass').value,er=document.getElementById('login-error');er.textContent='';if(!u||!p)return er.textContent='ALL FIELDS REQUIRED';try{const d=await api('/api/auth/login',{method:'POST',body:JSON.stringify({username:u,password:p})});authToken=d.access_token;localStorage.setItem('magi_token',authToken);currentUser=await api('/api/auth/me');showApp()}catch(e){er.textContent=e.message||'AUTH FAILED'}}
-document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+function renderChat(){
+  const c=qs('#chat');if(!c)return;
+  c.innerHTML=state.msgs.map(m=>renderMsg(m)).join('');
+  c.scrollTop=c.scrollHeight;
+}
 
-function doLogout(){authToken='';localStorage.removeItem('magi_token');currentUser=null;document.getElementById('login-page').style.display='flex';document.getElementById('app-page').style.display='none';document.getElementById('login-pass').value=''}
+function renderMsg(m){
+  if(m.type==='user')return `<div class="msg msg-user"><div class="bubble">${esc(m.text)}</div></div>`;
+  if(m.type==='result'){
+    const ok=m.decision==='approve';
+    return `<div class="msg msg-result"><div class="result-box ${ok?'result-approve':'result-deny'}">${ok?'✅ 承认':'❌ 否决'}</div></div>`;
+  }
+  if(m.type==='thinking')return `<div class="msg msg-vote" data-u="${m.unit}"><div class="vote-header"><span class="spinner"></span> ${U[m.unit].codename} (${U[m.unit].role}) 思考中...</div></div>`;
+  if(m.type==='vote'){
+    const dc=m.decision==='approve'?'tag-approve':m.decision==='deny'?'tag-deny':'tag-abstain';
+    const dl=m.decision==='approve'?'承认':m.decision==='deny'?'否认':'弃权';
+    let th='';
+    if(m.thinking)th=`<button class="thinking-toggle" onclick="this.nextElementSibling.classList.toggle('show')">💭 展开思考</button><div class="thinking-block">${esc(m.thinking)}</div>`;
+    return `<div class="msg msg-vote" data-u="${m.unit}"><div class="vote-header"><span style="color:${U[m.unit].color}">${U[m.unit].codename}</span> <span style="color:var(--muted)">(${U[m.unit].role})</span> <span class="tag ${dc}">${dl}</span></div><div>${fmt(m.reasoning)}</div>${th}<div class="latency">⏱ ${m.latency}ms | 置信度 ${(m.confidence*100).toFixed(0)}%</div></div>`;
+  }
+  if(m.type==='consult'){
+    let th='';
+    if(m.thinking)th=`<button class="thinking-toggle" onclick="this.nextElementSibling.classList.toggle('show')">💭 展开思考</button><div class="thinking-block">${esc(m.thinking)}</div>`;
+    return `<div class="msg msg-consult" data-u="${m.unit}"><div class="vote-header"><span style="color:${U[m.unit].color}">${U[m.unit].codename}</span> <span style="color:var(--muted)">(${U[m.unit].role})</span></div><div>${fmt(m.response)}</div>${th}<div class="latency">⏱ ${m.latency}ms | 置信度 ${(m.confidence*100).toFixed(0)}%</div></div>`;
+  }
+  return '';
+}
 
-async function showApp(){document.getElementById('login-page').style.display='none';document.getElementById('app-page').style.display='block';const b=document.getElementById('user-badge');b.textContent=currentUser.username+' ['+currentUser.role+']';b.className='user-badge'+(currentUser.role==='admin'?' admin':'');document.getElementById('tab-config').style.display=currentUser.role==='admin'?'':'none';document.getElementById('tab-admin').style.display=currentUser.role==='admin'?'':'none';if(currentUser.role==='admin'){loadConfig();loadUsers();loadAdminConversations()}loadConversations()}
+function fmt(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}
+function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}
 
-async function init(){if(!authToken)return;try{currentUser=await api('/api/auth/me');showApp()}catch{doLogout()}}
-init();
+function renderLogin(){
+  const app=qs('#app');
+  app.innerHTML=`<div class="login-page"><div class="login-box"><h2>MAGI SYSTEM</h2>
+  <input id="lu" placeholder="用户名"><input id="lp" type="password" placeholder="密码">
+  <button onclick="doLogin()">登录</button><div class="toggle" onclick="toggleReg()">没有账号？注册</div></div></div>`;
+}
 
-function switchTab(n){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===n));document.querySelectorAll('.tab-content').forEach(c=>c.classList.toggle('active',c.id==='tab-'+n));if(n==='conversations')loadConversations();if(n==='admin'&&currentUser?.role==='admin'){loadUsers();loadAdminConversations()}}
+function toggleReg(){
+  const box=qs('.login-box');
+  if(qs('#lr')){qs('#lr').remove();qs('.toggle').textContent='没有账号？注册';return}
+  box.innerHTML+=`<input id="lr" placeholder="确认密码" style="display:block">`;
+  qs('.toggle').textContent='已有账号？登录';
+}
 
-async function submitJudge(){const t=document.getElementById('question-input').value.trim();if(!t)return toast('QUESTION REQUIRED',true);const b=document.getElementById('judge-btn'),s=document.getElementById('judge-status');b.disabled=true;s.textContent='■ MAGI PROCESSING...';try{const d=await api('/api/judge',{method:'POST',body:JSON.stringify({text:t})});renderJudgment(d);s.textContent=''}catch(e){toast(e.message,true);s.textContent=''}b.disabled=false}
-document.getElementById('question-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))submitJudge()});
+async function doLogin(){
+  const u=qs('#lu').value,p=qs('#lp').value,r=qs('#lr')?.value;
+  const endpoint=r?'/api/auth/register':'/api/auth/login';
+  const body=r?{username:u,password:p}:{username:u,password:p};
+  try{
+    const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.detail||'Error');
+    if(r){state.token=(await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})}).then(r=>r.json())).access_token;}
+    else state.token=data.access_token;
+    state.user=await fetch('/api/auth/me',{headers:{'Authorization':'Bearer '+state.token}}).then(r=>r.json());
+    localStorage.setItem('magi_token',state.token);
+    render();
+  }catch(e){alert(e.message)}
+}
 
-function renderJudgment(d){const el=document.getElementById('judge-result');const uc={melchior:'melchior',balthasar:'balthasar',casper:'casper'};const decs=d.votes.map(v=>v.decision);const ac=decs.filter(x=>x==='approve').length;const fc=ac>=2?'approve':'deny';el.innerHTML=`<div class="votes-grid">${d.votes.map(v=>`<div class="vote-card ${uc[v.unit]||''}"><div class="vote-header"><span class="unit-name">${v.codename}</span><span>${v.role}</span></div><div class="vote-decision ${v.decision}">${v.decision==='approve'?'✓ APPROVE':'✗ DENY'}</div><div class="vote-reason">${esc(v.reasoning)}</div><div class="vote-meta"><span>confidence: ${(v.confidence*100).toFixed(1)}%</span><span>${v.latency_ms}ms</span></div></div>`).join('')}</div><div class="result-banner ${fc}">${fc==='approve'?'✓ RESOLUTION APPROVED':'✗ RESOLUTION DENIED'}<small>CONSENSUS: ${d.consensus} | ${ac}/3 APPROVE | LATENCY: ${d.total_latency_ms}ms</small></div>`}
+function logout(){state.token=null;state.user=null;state.msgs=[];localStorage.removeItem('magi_token');render()}
 
-async function loadConfig(){try{const c=await api('/api/admin/config');document.getElementById('cfg-api-base').value=c.api_base||'';document.getElementById('cfg-api-key').value='';document.getElementById('cfg-api-key').placeholder=c.api_key_masked||'sk-***';for(const u of['melchior','balthasar','casper']){const s=document.getElementById('cfg-'+u);if(s&&c.units&&c.units[u])s.value=c.units[u].model||'deepseek-v4-pro'}}catch{}}
+function setMode(m){state.mode=m;render()}
+function setUnit(u){state.unit=u;render()}
 
-async function saveConfig(){const u={};for(const i of['melchior','balthasar','casper'])u[i]={model:document.getElementById('cfg-'+i).value};const b={api_base:document.getElementById('cfg-api-base').value||undefined,api_key:document.getElementById('cfg-api-key').value||undefined,units:u};try{await api('/api/admin/config',{method:'PUT',body:JSON.stringify(b)});toast('CONFIGURATION SAVED');loadConfig()}catch(e){toast(e.message,true)}}
+async function submit(){
+  const ta=qs('#q');const text=ta.value.trim();if(!text||state.loading)return;
+  state.loading=true;ta.value='';
+  state.msgs.push({type:'user',text});render();
 
-async function loadUsers(){try{allUsers=await api('/api/admin/users');document.getElementById('user-tbody').innerHTML=allUsers.map(u=>`<tr><td>${u.id.slice(0,8)}…</td><td>${u.username}</td><td>${u.role}</td><td style="color:${u.is_active!==false?'var(--accent)':'var(--warn)'}">${u.is_active!==false?'ACTIVE':'DISABLED'}</td><td>${u.tpm_limit||'∞'}</td><td>${u.tpd_limit||'∞'}</td><td>${u.created_at?new Date(u.created_at).toLocaleDateString():'-'}</td><td><button class="tbl-btn edit" onclick="editUser('${u.id}')">EDIT</button><button class="tbl-btn del" onclick="deleteUser('${u.id}','${u.username}')">DEL</button></td></tr>`).join('')}catch{}}
+  if(state.mode==='judge'){
+    Object.keys(U).forEach(u=>state.msgs.push({type:'thinking',unit:u}));
+    render();
+    try{
+      const res=await fetch('/api/judge',{
+        method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.token},
+        body:JSON.stringify({question:text})
+      });
+      const data=await res.json();
+      state.msgs=state.msgs.filter(m=>m.type!=='thinking');
+      data.votes.forEach(v=>{
+        state.msgs.push({type:'vote',unit:v.unit,decision:v.decision,reasoning:v.reasoning,thinking:v.thinking,confidence:v.confidence,latency:v.latency_ms});
+      });
+      state.msgs.push({type:'result',decision:data.final_decision});
+    }catch(e){state.msgs=state.msgs.filter(m=>m.type!=='thinking');state.msgs.push({type:'user',text:'❌ '+e.message})}
+  }else{
+    try{
+      const res=await fetch('/api/consult',{
+        method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.token},
+        body:JSON.stringify({text,unit:state.unit})
+      });
+      const data=await res.json();
+      state.msgs.push({type:'consult',unit:data.unit,response:data.response,thinking:data.thinking,confidence:data.confidence,latency:data.latency_ms});
+    }catch(e){state.msgs.push({type:'user',text:'❌ '+e.message})}
+  }
+  state.loading=false;render();
+}
 
-function showUserModal(id){document.getElementById('user-modal').classList.add('show');document.getElementById('modal-title').textContent=id?'EDIT USER':'CREATE USER';document.getElementById('modal-edit-id').value=id||'';if(!id){document.getElementById('modal-username').value='';document.getElementById('modal-password').value='';document.getElementById('modal-role').value='user';document.getElementById('modal-tpm').value='0';document.getElementById('modal-tpd').value='0'}}
-function closeUserModal(){document.getElementById('user-modal').classList.remove('show')}
-function editUser(id){const u=allUsers.find(x=>x.id===id);if(!u)return;showUserModal(id);document.getElementById('modal-username').value=u.username;document.getElementById('modal-password').value='';document.getElementById('modal-role').value=u.role;document.getElementById('modal-tpm').value=u.tpm_limit||0;document.getElementById('modal-tpd').value=u.tpd_limit||0}
+function renderConfig(){
+  const p=qs('#cfgPanel');if(!p)return;
+  fetch('/api/admin/config',{headers:{'Authorization':'Bearer '+state.token}}).then(r=>r.json()).then(cfg=>{
+    p.innerHTML=`<h3 style="color:var(--blue);font-size:.9em;margin-bottom:12px">全局配置 (管理员)</h3>
+    <label>API Base</label><input id="cb" value="${cfg.api_base||''}">
+    <label>API Key</label><input id="ck" type="password" value="${cfg.api_key||''}" placeholder="留空不修改">
+    <label>思考强度</label><select id="ce"><option value="">默认</option>
+    <option value="low" ${cfg.reasoning_effort==='low'?'selected':''}>Low</option>
+    <option value="medium" ${cfg.reasoning_effort==='medium'?'selected':''}>Medium</option>
+    <option value="high" ${cfg.reasoning_effort==='high'?'selected':''}>High</option></select>
+    <button onclick="saveConfig()">保存</button>`;
+  });
+}
 
-async function saveUserModal(){const eid=document.getElementById('modal-edit-id').value;const b={username:document.getElementById('modal-username').value.trim(),role:document.getElementById('modal-role').value,tpm_limit:parseInt(document.getElementById('modal-tpm').value)||0,tpd_limit:parseInt(document.getElementById('modal-tpd').value)||0};const pw=document.getElementById('modal-password').value;if(pw)b.password=pw;try{if(eid){await api('/api/admin/users/'+eid,{method:'PUT',body:JSON.stringify(b)});toast('USER UPDATED')}else{if(!pw)return toast('PASSWORD REQUIRED',true);await api('/api/admin/users',{method:'POST',body:JSON.stringify(b)});toast('USER CREATED')}closeUserModal();loadUsers()}catch(e){toast(e.message,true)}}
+function toggleConfig(){qs('#cfgPanel').classList.toggle('show')}
 
-async function deleteUser(id,un){if(un==='admin')return toast('CANNOT DELETE ADMIN',true);if(!confirm('DELETE USER: '+un+'?'))return;try{await api('/api/admin/users/'+id,{method:'DELETE'});toast('USER DELETED');loadUsers()}catch(e){toast(e.message,true)}}
+async function saveConfig(){
+  const body={api_base:qs('#cb').value,reasoning_effort:qs('#ce').value||null};
+  const k=qs('#ck').value;if(k)body.api_key=k;
+  const units={};Object.keys(U).forEach(uid=>{units[uid]={}});
+  body.units=units;
+  await fetch('/api/admin/config',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.token},body:JSON.stringify(body)});
+  qs('#cfgPanel').classList.remove('show');
+}
 
-async function loadConversations(){const c=document.getElementById('conv-container');c.innerHTML='<div class="loading-text">LOADING...</div>';try{const d=await api('/api/conversations');if(!d.length){c.innerHTML='<div class="empty-text">NO CONVERSATION RECORDS</div>';return}c.innerHTML=d.map(x=>renderConv(x)).join('')}catch{c.innerHTML='<div class="empty-text">FAILED TO LOAD</div>'}}
+function showSettings(){
+  const m=qs('#settModal');
+  m.className='settings-modal show';
+  m.innerHTML=`<div class="settings-box"><h2>⚙ 个人设置</h2>
+  <label>自定义 API Base (可选)</label><input id="sbase" value="${state.user?.api_base||''}" placeholder="https://api.vveai.com/v1">
+  <label>自定义 API Key (可选)</label><input id="skey" type="password" placeholder="留空不修改">
+  <div class="btn-row"><button onclick="saveSettings()" style="background:var(--blue);color:var(--bg);border:none">保存</button>
+  <button onclick="qs('#settModal').className='settings-modal'" style="background:none;border:1px solid var(--border);color:var(--muted)">取消</button></div></div>`;
+}
 
-async function loadAdminConversations(){const c=document.getElementById('admin-conv-container');c.innerHTML='<div class="loading-text">LOADING...</div>';try{const d=await api('/api/admin/conversations');if(!d.length){c.innerHTML='<div class="empty-text">NO CONVERSATION RECORDS</div>';return}c.innerHTML=d.map(x=>renderConv(x,true)).join('')}catch{c.innerHTML='<div class="empty-text">FAILED TO LOAD</div>'}}
+async function saveSettings(){
+  const body={api_base:qs('#sbase').value||null,api_key:qs('#skey').value||null};
+  await fetch('/api/auth/settings',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.token},body:JSON.stringify(body)});
+  state.user=await fetch('/api/auth/me',{headers:{'Authorization':'Bearer '+state.token}}).then(r=>r.json());
+  qs('#settModal').className='settings-modal';render();
+}
 
-function renderConv(c,su=false){const ac=c.votes?c.votes.filter(v=>v.decision==='approve').length:0;const fc=ac>=2?'approve':'deny';const ts=c.timestamp?new Date(c.timestamp).toLocaleString():'-';return`<div class="conv-entry" onclick="this.classList.toggle('expanded')"><div class="conv-q">${su?'<span style=color:var(--accent2)>['+(c.username||c.user_id?.slice(0,8))+']</span> ':''}${esc(c.question||'')}</div><div class="conv-result ${fc}">${fc==='approve'?'✓ APPROVED':'✗ DENIED'} (${ac}/3)</div><div class="conv-time">${ts} | ${c.total_latency_ms||'?'}ms</div><div class="conv-detail">${(c.votes||[]).map(v=>`<div class="conv-vote-mini"><strong>${v.codename||v.unit}</strong>: ${v.decision==='approve'?'✓':'✗'} ${(v.confidence*100).toFixed(0)}% — ${esc(v.reasoning||'').slice(0,200)}</div>`).join('')}</div></div>`}
-
-function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
-
-async function exportConversations(){try{const d=await api('/api/conversations/export');downloadJSON(d,'magi-my-conversations.json');toast('EXPORT COMPLETE')}catch(e){toast(e.message,true)}}
-
-async function exportAllConversations(){try{const d=await api('/api/admin/conversations/export');downloadJSON(d,'magi-all-conversations.json');toast('EXPORT COMPLETE')}catch(e){toast(e.message,true)}}
-
-function downloadJSON(d,f){const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=f;a.click();URL.revokeObjectURL(u)}
+// Auto-login
+(async()=>{
+  const t=localStorage.getItem('magi_token');
+  if(t){try{state.token=t;state.user=await fetch('/api/auth/me',{headers:{'Authorization':'Bearer '+t}}).then(r=>r.json());if(state.user.id)render();else throw 0}catch{localStorage.removeItem('magi_token');renderLogin()}}else renderLogin()
+})();
 </script>
-</body>
-</html>'''
+</body></html>"""

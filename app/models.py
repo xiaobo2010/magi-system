@@ -35,10 +35,19 @@ class UserUpdate(BaseModel):
     tpm_limit: Optional[int] = None
     tpd_limit: Optional[int] = None
 
+class UserSettingsUpdate(BaseModel):
+    api_key: Optional[str] = None
+    api_base: Optional[str] = None
+
 class GlobalConfigUpdate(BaseModel):
     api_base: Optional[str] = None
     api_key: Optional[str] = None
     units: Optional[dict] = None
+    reasoning_effort: Optional[str] = None
+
+class ConsultRequest(BaseModel):
+    text: str
+    unit: str  # melchior | balthasar | casper
 
 
 # ─── User store ──────────────────────────────────────────
@@ -54,6 +63,10 @@ class UserStore:
             with _user_lock:
                 with open(USERS_FILE, "r") as f:
                     self.users = json.load(f)
+                # migrate: add api_key / api_base fields if missing
+                for u in self.users.values():
+                    u.setdefault("api_key", None)
+                    u.setdefault("api_base", None)
         else:
             self.users = {}
             self._save()
@@ -84,6 +97,8 @@ class UserStore:
             "is_active": True,
             "tpm_limit": 0,
             "tpd_limit": 0,
+            "api_key": None,
+            "api_base": None,
             "created_at": time.time(),
         }
         self.users[user_id] = user
@@ -185,10 +200,13 @@ class GlobalConfigStore:
             with _config_lock:
                 with open(CONFIG_FILE, "r") as f:
                     self.config = json.load(f)
+                # migrate: add reasoning_effort if missing
+                self.config.setdefault("reasoning_effort", None)
         else:
             self.config = {
                 "api_base": os.getenv("MAGI_API_BASE", "https://api.vveai.com/v1"),
                 "api_key": os.getenv("MAGI_API_KEY", ""),
+                "reasoning_effort": None,
                 "units": {
                     "melchior": {"model": os.getenv("MAGI_MELCHIOR_MODEL", os.getenv("MAGI_MODEL", "deepseek-v4-pro"))},
                     "balthasar": {"model": os.getenv("MAGI_BALTHASAR_MODEL", os.getenv("MAGI_MODEL", "deepseek-v4-pro"))},
@@ -210,6 +228,8 @@ class GlobalConfigStore:
             self.config["api_base"] = updates["api_base"]
         if "api_key" in updates and updates["api_key"]:
             self.config["api_key"] = updates["api_key"]
+        if "reasoning_effort" in updates:
+            self.config["reasoning_effort"] = updates["reasoning_effort"]
         if "units" in updates and updates["units"]:
             for uid, ucfg in updates["units"].items():
                 if uid in self.config["units"]:
@@ -224,6 +244,7 @@ class GlobalConfigStore:
         return {
             "api_base": cfg["api_base"],
             "api_key_masked": masked,
+            "reasoning_effort": cfg.get("reasoning_effort"),
             "units": cfg["units"],
         }
 
@@ -250,9 +271,9 @@ class RateLimiter:
         self._cleanup(minute_key, 60)
         self._cleanup(day_key, 86400)
         if tpm > 0 and len(self._windows.get(minute_key, [])) >= tpm:
-            return "TPM limit exceeded"
+            return "每分钟请求次数已达上限"
         if tpd > 0 and len(self._windows.get(day_key, [])) >= tpd:
-            return "TPD limit exceeded"
+            return "每日请求次数已达上限"
         self._windows.setdefault(minute_key, []).append(now)
         self._windows.setdefault(day_key, []).append(now)
         return None
