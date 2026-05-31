@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from app.magi import MagiSystem, UNIT_CONFIG
-from app.auth import get_current_user, require_admin
+from app.auth import get_current_user, require_admin, hash_password
 from app.models import (
     user_store, conv_store, global_config_store, rate_limiter,
     ConsultRequest, build_conversation_record,
