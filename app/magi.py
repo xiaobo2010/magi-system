@@ -113,25 +113,27 @@ MAGI_PROMPTS = {
     },
 }
 
+# 默认配置
+DEFAULT_CONFIG = {
+    "api_base": os.getenv("MAGI_API_BASE", "https://api.vveai.com/v1"),
+    "api_key": os.getenv("MAGI_API_KEY", ""),
+    "units": {
+        "melchior": {"model": os.getenv("MAGI_MELCHIOR_MODEL", os.getenv("MAGI_MODEL", "deepseek-v4-pro"))},
+        "balthasar": {"model": os.getenv("MAGI_BALTHASAR_MODEL", os.getenv("MAGI_MODEL", "deepseek-v4-pro"))},
+        "casper": {"model": os.getenv("MAGI_CASPER_MODEL", os.getenv("MAGI_MODEL", "deepseek-v4-pro"))},
+    }
+}
+
 
 class MagiUnit:
     """单个 MAGI 处理单元"""
 
-    def __init__(self, unit_id: str):
+    def __init__(self, unit_id: str, api_base: str, api_key: str, model: str):
         config = MAGI_PROMPTS[unit_id]
         self.unit_id = unit_id
         self.codename = config["codename"]
         self.role = config["role"]
         self.system_prompt = config["system"]
-
-        # 每个 MAGI 可以使用不同的 API/模型
-        api_base = os.getenv(f"MAGI_{unit_id.upper()}_API_BASE",
-                            os.getenv("MAGI_API_BASE", "https://api.vveai.com/v1"))
-        api_key = os.getenv(f"MAGI_{unit_id.upper()}_API_KEY",
-                           os.getenv("MAGI_API_KEY", ""))
-        model = os.getenv(f"MAGI_{unit_id.upper()}_MODEL",
-                         os.getenv("MAGI_MODEL", "deepseek-v4-pro"))
-
         self.client = AsyncOpenAI(base_url=api_base, api_key=api_key)
         self.model = model
 
@@ -151,9 +153,7 @@ class MagiUnit:
             latency = int((time.time() - start) * 1000)
             raw = response.choices[0].message.content.strip()
 
-            # 解析 JSON 响应
             import json
-            # 尝试提取 JSON 块
             if "```json" in raw:
                 raw = raw.split("```json")[1].split("```")[0].strip()
             elif "```" in raw:
@@ -185,17 +185,50 @@ class MagiSystem:
     """MAGI 超级计算机 — 三位一体多数决系统"""
 
     def __init__(self):
-        self.units = {
-            "melchior": MagiUnit("melchior"),
-            "balthasar": MagiUnit("balthasar"),
-            "casper": MagiUnit("casper"),
+        self.config = DEFAULT_CONFIG.copy()
+        self._rebuild_units()
+
+    def _rebuild_units(self):
+        """根据当前配置重建 MAGI 单元"""
+        cfg = self.config
+        self.units = {}
+        for uid in ["melchior", "balthasar", "casper"]:
+            unit_cfg = cfg["units"].get(uid, {})
+            self.units[uid] = MagiUnit(
+                unit_id=uid,
+                api_base=unit_cfg.get("api_base", cfg["api_base"]),
+                api_key=unit_cfg.get("api_key", cfg["api_key"]),
+                model=unit_cfg.get("model", "deepseek-v4-pro"),
+            )
+
+    def update_config(self, new_config: dict):
+        """动态更新配置"""
+        # 合并配置
+        if "api_base" in new_config:
+            self.config["api_base"] = new_config["api_base"]
+        if "api_key" in new_config:
+            self.config["api_key"] = new_config["api_key"]
+        if "units" in new_config:
+            for uid, ucfg in new_config["units"].items():
+                if uid in self.config["units"]:
+                    self.config["units"][uid].update(ucfg)
+        self._rebuild_units()
+
+    def get_config(self) -> dict:
+        """获取当前配置（隐藏敏感信息）"""
+        cfg = self.config.copy()
+        key = cfg.get("api_key", "")
+        masked = key[:4] + "***" + key[-4:] if len(key) > 8 else "***" if key else ""
+        return {
+            "api_base": cfg["api_base"],
+            "api_key_masked": masked,
+            "units": cfg["units"],
         }
 
     async def judge(self, question: str) -> MagiJudgment:
         """提交问题给三个 MAGI 单元并行裁决"""
         start = time.time()
 
-        # 并行请求三个 MAGI
         votes = await asyncio.gather(
             self.units["melchior"].deliberate(question),
             self.units["balthasar"].deliberate(question),
@@ -215,24 +248,18 @@ class MagiSystem:
         )
 
     def _majority_vote(self, votes: list[MagiVote]) -> Decision:
-        """多数决胜规则"""
         counts = {Decision.APPROVE: 0, Decision.DENY: 0, Decision.ABSTAIN: 0}
         for v in votes:
             counts[v.decision] += 1
-
-        # 2/3 多数即通过或否决
         if counts[Decision.APPROVE] >= 2:
             return Decision.APPROVE
         if counts[Decision.DENY] >= 2:
             return Decision.DENY
-        # 弃权过多时倾向否决（NERV 安全原则）
         if counts[Decision.ABSTAIN] >= 2:
             return Decision.DENY
-        # 1-1-1 分歧 → 否决（保守原则）
         return Decision.DENY
 
     def _build_consensus(self, votes: list[MagiVote], final: Decision) -> str:
-        """生成共识摘要"""
         emoji_map = {
             Decision.APPROVE: "✅ 承认",
             Decision.DENY: "❌ 否认",
@@ -241,7 +268,7 @@ class MagiSystem:
         lines = [f"MAGI 最终裁定: {emoji_map[final]}\n"]
         for v in votes:
             lines.append(
-                f"  {v.codename} ({v.role}): "
+                f"  {v.codename} ({self.units[v.unit].role}): "
                 f"{emoji_map[v.decision]} [置信度 {v.confidence:.0%}] "
                 f"— {v.reasoning}"
             )
